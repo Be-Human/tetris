@@ -228,10 +228,16 @@ class TetrisGame {
             }
         }
         
-        // 计算得分
+        // 计算得分：消1行100分，同时消多行给予额外加成
         if (linesCleared > 0) {
-            const baseScore = [0, 100, 300, 500, 800];
-            this.score += baseScore[linesCleared];
+            // 基础分：每行100分
+            let lineScore = linesCleared * 100;
+            
+            // 额外加成：消2行+100，消3行+300，消4行+600
+            const bonusScore = [0, 0, 100, 300, 600];
+            lineScore += bonusScore[linesCleared];
+            
+            this.score += lineScore;
             this.updateScore();
         }
     }
@@ -403,9 +409,8 @@ class TetrisGame {
     // 硬降落（直接下落到底）
     hardDrop() {
         while (this.movePiece(0, 1)) {
-            this.score += 2; // 硬降落额外加分
+            // 硬降落不再额外加分，只在消行时计分
         }
-        this.updateScore();
         this.lockPiece();
     }
     
@@ -432,7 +437,8 @@ class TetrisGame {
     
     // 处理键盘按下
     handleKeyDown(e) {
-        if (this.gameOver || !this.currentPiece) return;
+        // 暂停期间屏蔽所有键盘输入
+        if (this.isPaused || this.gameOver || !this.currentPiece) return;
         
         if (e.code in this.keyStates) {
             e.preventDefault();
@@ -456,6 +462,9 @@ class TetrisGame {
     
     // 处理键盘松开
     handleKeyUp(e) {
+        // 暂停期间不处理键盘松开事件，避免状态不一致
+        if (this.isPaused) return;
+        
         if (e.code in this.keyStates) {
             this.keyStates[e.code] = false;
         }
@@ -480,10 +489,7 @@ class TetrisGame {
         }
         
         if (this.keyStates.ArrowDown) {
-            if (this.movePiece(0, 1)) {
-                this.score += 1; // 按住向下键额外加分
-                this.updateScore();
-            }
+            this.movePiece(0, 1);
             this.lastMoveTime = timestamp;
         }
     }
