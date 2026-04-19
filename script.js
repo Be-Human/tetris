@@ -369,7 +369,7 @@ class TetrisGame {
         this.nextCtx.fillRect(0, 0, this.nextCanvas.width, this.nextCanvas.height);
         
         const shape = this.nextPiece.shape;
-        const blockSize = 25;
+        const blockSize = 20;
         const offsetX = (this.nextCanvas.width - shape[0].length * blockSize) / 2;
         const offsetY = (this.nextCanvas.height - shape.length * blockSize) / 2;
         
