@@ -83,10 +83,13 @@ class TetrisGame {
         this.currentPiece = null;
         this.nextPiece = null;
         this.score = 0;
+        this.level = 1; // 当前等级
+        this.totalLinesCleared = 0; // 累计消除行数
         this.gameOver = false;
         this.isPaused = false;
         this.gameLoop = null;
-        this.dropSpeed = 800; // 初始下落速度（毫秒）
+        this.baseDropSpeed = 800; // 基础下落速度（毫秒）
+        this.dropSpeed = 800; // 当前下落速度（毫秒）
         this.fastDrop = false;
         
         // 键盘控制状态
@@ -102,6 +105,7 @@ class TetrisGame {
         
         // DOM 元素
         this.scoreElement = document.getElementById('score');
+        this.levelElement = document.getElementById('level');
         this.startBtn = document.getElementById('startBtn');
         this.pauseBtn = document.getElementById('pauseBtn');
         this.gameOverElement = document.getElementById('gameOver');
@@ -239,6 +243,15 @@ class TetrisGame {
             
             this.score += lineScore;
             this.updateScore();
+            
+            // 更新累计消行数并检查升级
+            this.totalLinesCleared += linesCleared;
+            const newLevel = Math.floor(this.totalLinesCleared / 10) + 1;
+            
+            if (newLevel > this.level) {
+                this.level = newLevel;
+                this.updateLevel();
+            }
         }
     }
     
@@ -435,6 +448,15 @@ class TetrisGame {
         this.scoreElement.textContent = this.score;
     }
     
+    // 更新等级显示和下落速度
+    updateLevel() {
+        this.levelElement.textContent = this.level;
+        
+        // 每升一级，下落速度减少10%（最少100毫秒）
+        const speedReduction = Math.min(this.level - 1, 10); // 最多减少10级
+        this.dropSpeed = Math.max(100, this.baseDropSpeed * (1 - speedReduction * 0.1));
+    }
+    
     // 处理键盘按下
     handleKeyDown(e) {
         // 暂停期间屏蔽所有键盘输入
@@ -528,7 +550,13 @@ class TetrisGame {
     startGame() {
         this.initBoard();
         this.score = 0;
+        this.level = 1;
+        this.totalLinesCleared = 0;
+        this.dropSpeed = this.baseDropSpeed;
+        
         this.updateScore();
+        this.updateLevel();
+        
         this.gameOver = false;
         this.isPaused = false;
         
