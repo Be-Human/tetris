@@ -36,16 +36,7 @@
                     <h2>下一个</h2>
                     <canvas id="nextCanvas" width="100" height="100"></canvas>
                 </div>
-                <div class="info-panel">
-                    <h2>操作说明</h2>
-                    <ul>
-                        <li>← →：左右移动</li>
-                        <li>↑：旋转</li>
-                        <li>↓：加速下落</li>
-                        <li>空格：直接下落</li>
-                        <li>C：暂存方块</li>
-                    </ul>
-                </div>
+                <button id="helpBtn" class="btn help-btn">?</button>
                 <div class="info-panel settings-panel">
                     <div class="setting-item">
                         <span class="setting-label">难度</span>
@@ -80,6 +71,40 @@
                 <div id="newRecord" class="new-record" style="display: none;">🎉 新纪录！</div>
                 <p>最终得分: <span id="finalScore">0</span></p>
                 <button id="restartBtn" class="btn">重新开始</button>
+            </div>
+        </div>
+        
+        <div id="helpModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span id="closeHelp" class="close-btn">&times;</span>
+                <h2>操作说明</h2>
+                <div class="help-content">
+                    <div class="help-item">
+                        <span class="key">← →</span>
+                        <span class="desc">左右移动</span>
+                    </div>
+                    <div class="help-item">
+                        <span class="key">↑</span>
+                        <span class="desc">旋转</span>
+                    </div>
+                    <div class="help-item">
+                        <span class="key">↓</span>
+                        <span class="desc">加速下落</span>
+                    </div>
+                    <div class="help-item">
+                        <span class="key">空格</span>
+                        <span class="desc">直接下落</span>
+                    </div>
+                    <div class="help-item">
+                        <span class="key">C</span>
+                        <span class="desc">暂存方块</span>
+                    </div>
+                    <div class="help-item">
+                        <span class="key">P</span>
+                        <span class="desc">暂停/继续</span>
+                    </div>
+                </div>
+                <button id="closeHelpBtn" class="btn">知道了</button>
             </div>
         </div>
     </div>
