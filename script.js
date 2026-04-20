@@ -1,5 +1,27 @@
 class TetrisGame {
     constructor() {
+        // 难度配置
+        this.difficulties = {
+            easy: {
+                baseSpeed: 1000,
+                scoreMultiplier: 0.8,
+                insertLines: false,
+                insertInterval: 0
+            },
+            normal: {
+                baseSpeed: 800,
+                scoreMultiplier: 1.0,
+                insertLines: true,
+                insertInterval: 500
+            },
+            hard: {
+                baseSpeed: 500,
+                scoreMultiplier: 1.5,
+                insertLines: true,
+                insertInterval: 300
+            }
+        };
+        
         // 游戏画布设置
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
@@ -94,6 +116,17 @@ class TetrisGame {
         this.fastDrop = false;
         this.showGhostPiece = this.loadGhostPieceSetting(); // 是否显示幽灵方块
         
+        // 难度和模式设置
+        this.difficulty = 'normal';
+        this.bombMode = false;
+        this.scoreMultiplier = 1.0;
+        this.insertLines = true;
+        this.insertInterval = 500;
+        this.lastInsertScore = 0;
+        
+        // 炸弹方块颜色
+        this.bombColor = '#ff00ff';
+        
         // 键盘控制状态
         this.keyStates = {
             ArrowLeft: false,
@@ -116,9 +149,14 @@ class TetrisGame {
         this.finalScoreElement = document.getElementById('finalScore');
         this.restartBtn = document.getElementById('restartBtn');
         this.ghostPieceToggle = document.getElementById('ghostPieceToggle');
+        this.difficultySelect = document.getElementById('difficultySelect');
+        this.bombModeToggle = document.getElementById('bombModeToggle');
         
         // 同步开关按钮状态
         this.syncGhostPieceToggle();
+        
+        // 初始化游戏板
+        this.initBoard();
         
         // 绑定事件
         this.bindEvents();
@@ -139,6 +177,16 @@ class TetrisGame {
         this.ghostPieceToggle.addEventListener('change', (e) => {
             this.showGhostPiece = e.target.checked;
             this.saveGhostPieceSetting();
+        });
+        
+        // 难度选择事件
+        this.difficultySelect.addEventListener('change', (e) => {
+            this.difficulty = e.target.value;
+        });
+        
+        // 炸弹模式开关事件
+        this.bombModeToggle.addEventListener('change', (e) => {
+            this.bombMode = e.target.checked;
         });
     }
     
@@ -189,11 +237,33 @@ class TetrisGame {
     generatePiece() {
         const index = Math.floor(Math.random() * this.shapes.length);
         const shapeData = this.shapes[index];
+        const shape = JSON.parse(JSON.stringify(shapeData.shape));
+        
+        // 炸弹模式下，随机决定是否生成炸弹方块
+        let bombPositions = [];
+        if (this.bombMode && Math.random() < 0.3) {
+            // 找到所有非零的位置
+            const positions = [];
+            for (let row = 0; row < shape.length; row++) {
+                for (let col = 0; col < shape[row].length; col++) {
+                    if (shape[row][col] === 1) {
+                        positions.push({ row, col });
+                    }
+                }
+            }
+            // 随机选择一个位置作为炸弹
+            if (positions.length > 0) {
+                const bombPos = positions[Math.floor(Math.random() * positions.length)];
+                bombPositions.push(bombPos);
+            }
+        }
+        
         return {
-            shape: JSON.parse(JSON.stringify(shapeData.shape)),
+            shape: shape,
             color: shapeData.color,
             x: Math.floor((this.cols - shapeData.shape[0].length) / 2),
-            y: 0
+            y: 0,
+            bombPositions: bombPositions
         };
     }
     
@@ -209,9 +279,22 @@ class TetrisGame {
             }
         }
         
+        // 旋转炸弹位置
+        let rotatedBombPositions = [];
+        if (piece.bombPositions && piece.bombPositions.length > 0) {
+            rotatedBombPositions = piece.bombPositions.map(pos => {
+                // 顺时针旋转90度的坐标变换：(i, j) -> (j, size - 1 - i)
+                return {
+                    row: pos.col,
+                    col: size - 1 - pos.row
+                };
+            });
+        }
+        
         return {
             ...piece,
-            shape: rotated
+            shape: rotated,
+            bombPositions: rotatedBombPositions
         };
     }
     
@@ -242,6 +325,10 @@ class TetrisGame {
     // 将方块固定到游戏板
     fixPiece() {
         const shape = this.currentPiece.shape;
+        const bombPositions = this.currentPiece.bombPositions || [];
+        const actualBombPositions = [];
+        
+        // 先固定所有方块，并记录炸弹的实际位置
         for (let row = 0; row < shape.length; row++) {
             for (let col = 0; col < shape[row].length; col++) {
                 if (shape[row][col]) {
@@ -249,8 +336,74 @@ class TetrisGame {
                     const boardY = this.currentPiece.y + row;
                     
                     if (boardY >= 0) {
-                        this.board[boardY][boardX] = this.currentPiece.color;
+                        // 检查是否是炸弹位置
+                        const isBomb = bombPositions.some(pos => pos.row === row && pos.col === col);
+                        
+                        if (isBomb) {
+                            actualBombPositions.push({ x: boardX, y: boardY });
+                            // 炸弹方块用特殊颜色
+                            this.board[boardY][boardX] = this.bombColor;
+                        } else {
+                            this.board[boardY][boardX] = this.currentPiece.color;
+                        }
                     }
+                }
+            }
+        }
+        
+        // 处理炸弹爆炸
+        if (actualBombPositions.length > 0) {
+            this.explodeBombs(actualBombPositions);
+        }
+    }
+    
+    // 炸弹爆炸：消除周围一圈的方块
+    explodeBombs(bombPositions) {
+        // 收集所有需要消除的位置
+        const positionsToClear = new Set();
+        
+        bombPositions.forEach(bomb => {
+            // 消除炸弹本身和周围一圈（3x3范围）
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const x = bomb.x + dx;
+                    const y = bomb.y + dy;
+                    
+                    // 检查边界
+                    if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
+                        positionsToClear.add(`${x},${y}`);
+                    }
+                }
+            }
+        });
+        
+        // 消除方块
+        positionsToClear.forEach(pos => {
+            const [x, y] = pos.split(',').map(Number);
+            this.board[y][x] = null;
+        });
+        
+        // 计算得分：每个消除的方块得10分
+        const clearScore = positionsToClear.size * 10 * this.scoreMultiplier;
+        this.score += Math.floor(clearScore);
+        this.updateScore();
+        
+        // 让方块下落填补空隙
+        this.dropBlocksAfterExplosion();
+    }
+    
+    // 爆炸后让方块下落填补空隙
+    dropBlocksAfterExplosion() {
+        for (let col = 0; col < this.cols; col++) {
+            // 从底部往上找
+            let writePos = this.rows - 1;
+            for (let row = this.rows - 1; row >= 0; row--) {
+                if (this.board[row][col] !== null) {
+                    if (row !== writePos) {
+                        this.board[writePos][col] = this.board[row][col];
+                        this.board[row][col] = null;
+                    }
+                    writePos--;
                 }
             }
         }
@@ -286,6 +439,9 @@ class TetrisGame {
             // 额外加成：消2行+100，消3行+300，消4行+600
             const bonusScore = [0, 0, 100, 300, 600];
             lineScore += bonusScore[linesCleared];
+            
+            // 应用难度得分倍率
+            lineScore = Math.floor(lineScore * this.scoreMultiplier);
             
             this.score += lineScore;
             this.updateScore();
@@ -357,16 +513,32 @@ class TetrisGame {
         // 绘制当前方块
         if (this.currentPiece) {
             const shape = this.currentPiece.shape;
+            const bombPositions = this.currentPiece.bombPositions || [];
+            
             for (let row = 0; row < shape.length; row++) {
                 for (let col = 0; col < shape[row].length; col++) {
                     if (shape[row][col]) {
+                        // 检查是否是炸弹位置
+                        const isBomb = bombPositions.some(pos => pos.row === row && pos.col === col);
+                        const color = isBomb ? this.bombColor : this.currentPiece.color;
+                        
                         this.drawBlock(
                             this.ctx,
                             (this.currentPiece.x + col) * this.blockSize,
                             (this.currentPiece.y + row) * this.blockSize,
-                            this.currentPiece.color,
+                            color,
                             this.blockSize
                         );
+                        
+                        // 如果是炸弹，添加额外的视觉效果（中心圆点）
+                        if (isBomb) {
+                            const centerX = (this.currentPiece.x + col) * this.blockSize + this.blockSize / 2;
+                            const centerY = (this.currentPiece.y + row) * this.blockSize + this.blockSize / 2;
+                            this.ctx.fillStyle = '#ffffff';
+                            this.ctx.beginPath();
+                            this.ctx.arc(centerX, centerY, this.blockSize / 5, 0, Math.PI * 2);
+                            this.ctx.fill();
+                        }
                     }
                 }
             }
@@ -591,6 +763,9 @@ class TetrisGame {
         // 绘制
         this.drawBoard();
         
+        // 检查是否需要插入砖块
+        this.checkInsertLine();
+        
         this.gameLoop = requestAnimationFrame((t) => this.gameLoopFunction(t));
     }
     
@@ -600,7 +775,15 @@ class TetrisGame {
         this.score = 0;
         this.level = 1;
         this.totalLinesCleared = 0;
-        this.dropSpeed = this.baseDropSpeed;
+        
+        // 应用难度设置
+        const diffConfig = this.difficulties[this.difficulty];
+        this.baseDropSpeed = diffConfig.baseSpeed;
+        this.dropSpeed = diffConfig.baseSpeed;
+        this.scoreMultiplier = diffConfig.scoreMultiplier;
+        this.insertLines = diffConfig.insertLines;
+        this.insertInterval = diffConfig.insertInterval;
+        this.lastInsertScore = 0;
         
         this.updateScore();
         this.updateHighScore();
@@ -629,6 +812,45 @@ class TetrisGame {
             cancelAnimationFrame(this.gameLoop);
         }
         this.gameLoop = requestAnimationFrame((t) => this.gameLoopFunction(t));
+    }
+    
+    // 从底部插入一行随机填充的砖块
+    insertRandomLine() {
+        // 生成新的一行，随机填充，中间留一个空格
+        const newLine = [];
+        const emptyCol = Math.floor(Math.random() * this.cols);
+        
+        for (let col = 0; col < this.cols; col++) {
+            if (col === emptyCol) {
+                newLine.push(null);
+            } else {
+                // 随机选择一种颜色
+                const randomIndex = Math.floor(Math.random() * this.shapes.length);
+                newLine.push(this.shapes[randomIndex].color);
+            }
+        }
+        
+        // 移除顶部一行，底部插入新行
+        this.board.shift();
+        this.board.push(newLine);
+        
+        // 检查游戏是否结束（如果插入后与当前方块碰撞）
+        if (this.currentPiece && this.checkCollision(this.currentPiece)) {
+            this.endGame();
+        }
+    }
+    
+    // 检查是否需要插入砖块
+    checkInsertLine() {
+        if (!this.insertLines || this.insertInterval <= 0) return;
+        
+        // 计算从上次插入后增加的分数
+        const scoreSinceLastInsert = this.score - this.lastInsertScore;
+        
+        if (scoreSinceLastInsert >= this.insertInterval) {
+            this.insertRandomLine();
+            this.lastInsertScore = this.score;
+        }
     }
     
     // 暂停/继续游戏

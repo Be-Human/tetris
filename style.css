@@ -305,3 +305,29 @@ h1 {
         transform: scale(1.05);
     }
 }
+
+.difficulty-select {
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 2px solid #3498db;
+    background: white;
+    color: #2c3e50;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.difficulty-select:hover {
+    border-color: #2980b9;
+}
+
+.difficulty-select:focus {
+    outline: none;
+    box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+}
+
+.setting-item:not(:last-child) {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
