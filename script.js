@@ -92,7 +92,7 @@ class TetrisGame {
         this.baseDropSpeed = 800; // 基础下落速度（毫秒）
         this.dropSpeed = 800; // 当前下落速度（毫秒）
         this.fastDrop = false;
-        this.showGhostPiece = true; // 是否显示幽灵方块
+        this.showGhostPiece = this.loadGhostPieceSetting(); // 是否显示幽灵方块
         
         // 键盘控制状态
         this.keyStates = {
@@ -117,6 +117,9 @@ class TetrisGame {
         this.restartBtn = document.getElementById('restartBtn');
         this.ghostPieceToggle = document.getElementById('ghostPieceToggle');
         
+        // 同步开关按钮状态
+        this.syncGhostPieceToggle();
+        
         // 绑定事件
         this.bindEvents();
     }
@@ -135,6 +138,7 @@ class TetrisGame {
         // 幽灵方块开关事件
         this.ghostPieceToggle.addEventListener('change', (e) => {
             this.showGhostPiece = e.target.checked;
+            this.saveGhostPieceSetting();
         });
     }
     
@@ -152,6 +156,22 @@ class TetrisGame {
     // 更新最高分显示
     updateHighScore() {
         this.highScoreElement.textContent = this.highScore;
+    }
+    
+    // 从 localStorage 加载幽灵方块开关设置
+    loadGhostPieceSetting() {
+        const saved = localStorage.getItem('tetrisShowGhostPiece');
+        return saved !== null ? saved === 'true' : true;
+    }
+    
+    // 保存幽灵方块开关设置到 localStorage
+    saveGhostPieceSetting() {
+        localStorage.setItem('tetrisShowGhostPiece', this.showGhostPiece.toString());
+    }
+    
+    // 同步开关按钮状态
+    syncGhostPieceToggle() {
+        this.ghostPieceToggle.checked = this.showGhostPiece;
     }
     
     // 初始化游戏板
