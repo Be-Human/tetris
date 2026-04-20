@@ -116,9 +116,9 @@ class TetrisGame {
         this.fastDrop = false;
         this.showGhostPiece = this.loadGhostPieceSetting(); // 是否显示幽灵方块
         
-        // 难度和模式设置
-        this.difficulty = 'normal';
-        this.bombMode = false;
+        // 难度和模式设置（从 localStorage 加载）
+        this.difficulty = this.loadDifficultySetting();
+        this.bombMode = this.loadBombModeSetting();
         this.scoreMultiplier = 1.0;
         this.insertLines = true;
         this.insertInterval = 500;
@@ -126,6 +126,13 @@ class TetrisGame {
         
         // 炸弹方块颜色
         this.bombColor = '#ff00ff';
+        
+        // 爆炸特效相关
+        this.explosionEffects = []; // 当前活跃的爆炸特效
+        this.isAnimating = false; // 是否正在播放动画（阻止正常游戏逻辑）
+        
+        // 下落动画相关
+        this.fallingBlocks = []; // 当前正在下落的方块动画
         
         // 键盘控制状态
         this.keyStates = {
@@ -154,6 +161,8 @@ class TetrisGame {
         
         // 同步开关按钮状态
         this.syncGhostPieceToggle();
+        this.syncDifficultySelect();
+        this.syncBombModeToggle();
         
         // 初始化游戏板
         this.initBoard();
@@ -182,12 +191,24 @@ class TetrisGame {
         // 难度选择事件
         this.difficultySelect.addEventListener('change', (e) => {
             this.difficulty = e.target.value;
+            this.saveDifficultySetting();
         });
         
         // 炸弹模式开关事件
         this.bombModeToggle.addEventListener('change', (e) => {
             this.bombMode = e.target.checked;
+            this.saveBombModeSetting();
         });
+    }
+    
+    // 同步难度选择器状态
+    syncDifficultySelect() {
+        this.difficultySelect.value = this.difficulty;
+    }
+    
+    // 同步炸弹模式开关状态
+    syncBombModeToggle() {
+        this.bombModeToggle.checked = this.bombMode;
     }
     
     // 从 localStorage 加载最高分
@@ -215,6 +236,28 @@ class TetrisGame {
     // 保存幽灵方块开关设置到 localStorage
     saveGhostPieceSetting() {
         localStorage.setItem('tetrisShowGhostPiece', this.showGhostPiece.toString());
+    }
+    
+    // 从 localStorage 加载难度设置
+    loadDifficultySetting() {
+        const saved = localStorage.getItem('tetrisDifficulty');
+        return saved ? saved : 'normal';
+    }
+    
+    // 保存难度设置到 localStorage
+    saveDifficultySetting() {
+        localStorage.setItem('tetrisDifficulty', this.difficulty);
+    }
+    
+    // 从 localStorage 加载炸弹模式设置
+    loadBombModeSetting() {
+        const saved = localStorage.getItem('tetrisBombMode');
+        return saved !== null ? saved === 'true' : false;
+    }
+    
+    // 保存炸弹模式设置到 localStorage
+    saveBombModeSetting() {
+        localStorage.setItem('tetrisBombMode', this.bombMode.toString());
     }
     
     // 同步开关按钮状态
@@ -357,7 +400,7 @@ class TetrisGame {
         }
     }
     
-    // 炸弹爆炸：消除周围一圈的方块
+    // 炸弹爆炸：创建爆炸特效动画
     explodeBombs(bombPositions) {
         // 收集所有需要消除的位置
         const positionsToClear = new Set();
@@ -377,10 +420,10 @@ class TetrisGame {
             }
         });
         
-        // 消除方块
-        positionsToClear.forEach(pos => {
+        // 转换为数组
+        const clearPositions = Array.from(positionsToClear).map(pos => {
             const [x, y] = pos.split(',').map(Number);
-            this.board[y][x] = null;
+            return { x, y };
         });
         
         // 计算得分：每个消除的方块得10分
@@ -388,8 +431,148 @@ class TetrisGame {
         this.score += Math.floor(clearScore);
         this.updateScore();
         
-        // 让方块下落填补空隙
-        this.dropBlocksAfterExplosion();
+        // 创建爆炸特效
+        this.createExplosionEffect(bombPositions, clearPositions);
+    }
+    
+    // 创建爆炸特效
+    createExplosionEffect(bombPositions, clearPositions) {
+        this.isAnimating = true;
+        
+        // 保存需要消除的位置
+        this.positionsToClear = clearPositions;
+        
+        // 为每个炸弹创建爆炸特效
+        bombPositions.forEach(bomb => {
+            this.explosionEffects.push({
+                x: bomb.x,
+                y: bomb.y,
+                startTime: performance.now(),
+                duration: 500, // 500ms 动画
+                maxRadius: this.blockSize * 1.5 // 最大半径
+            });
+        });
+    }
+    
+    // 更新爆炸特效
+    updateExplosionEffects(timestamp) {
+        for (let i = this.explosionEffects.length - 1; i >= 0; i--) {
+            const effect = this.explosionEffects[i];
+            const progress = (timestamp - effect.startTime) / effect.duration;
+            
+            if (progress >= 1) {
+                // 动画结束，移除特效
+                this.explosionEffects.splice(i, 1);
+            }
+        }
+        
+        // 如果所有特效都结束了，执行方块消除和下落
+        if (this.explosionEffects.length === 0 && this.positionsToClear && this.positionsToClear.length > 0) {
+            this.executeClearAndFall();
+        }
+    }
+    
+    // 执行方块消除和下落
+    executeClearAndFall() {
+        // 消除方块
+        this.positionsToClear.forEach(pos => {
+            this.board[pos.y][pos.x] = null;
+        });
+        
+        // 准备下落动画
+        this.prepareFallingAnimation();
+        
+        this.positionsToClear = null;
+    }
+    
+    // 准备下落动画
+    prepareFallingAnimation() {
+        this.fallingBlocks = [];
+        
+        // 对每一列进行处理
+        for (let col = 0; col < this.cols; col++) {
+            // 从底部往上找，记录每个方块需要下落的距离
+            let writePos = this.rows - 1;
+            const columnBlocks = [];
+            
+            // 收集当前列的所有方块
+            for (let row = this.rows - 1; row >= 0; row--) {
+                if (this.board[row][col] !== null) {
+                    columnBlocks.push({
+                        color: this.board[row][col],
+                        originalRow: row,
+                        targetRow: writePos
+                    });
+                    writePos--;
+                }
+            }
+            
+            // 计算需要下落的方块
+            columnBlocks.forEach(block => {
+                if (block.originalRow !== block.targetRow) {
+                    this.fallingBlocks.push({
+                        col: col,
+                        originalRow: block.originalRow,
+                        targetRow: block.targetRow,
+                        color: block.color,
+                        startTime: performance.now(),
+                        duration: 300, // 300ms 下落动画
+                        delay: (this.rows - block.originalRow) * 30 // 延迟，让下落更自然
+                    });
+                }
+            });
+        }
+        
+        // 如果没有需要下落的方块，直接结束动画
+        if (this.fallingBlocks.length === 0) {
+            this.finishAnimation();
+        }
+    }
+    
+    // 更新下落动画
+    updateFallingAnimation(timestamp) {
+        if (this.fallingBlocks.length === 0) return;
+        
+        let allComplete = true;
+        
+        this.fallingBlocks.forEach(block => {
+            const elapsed = timestamp - block.startTime - block.delay;
+            
+            if (elapsed >= 0) {
+                const progress = Math.min(elapsed / block.duration, 1);
+                if (progress < 1) {
+                    allComplete = false;
+                }
+            } else {
+                allComplete = false;
+            }
+        });
+        
+        if (allComplete) {
+            // 所有方块都已下落到位，更新游戏板状态
+            this.updateBoardAfterFall();
+            this.finishAnimation();
+        }
+    }
+    
+    // 更新游戏板状态（下落完成后）
+    updateBoardAfterFall() {
+        // 清空游戏板
+        this.initBoard();
+        
+        // 重新放置所有方块到目标位置
+        this.fallingBlocks.forEach(block => {
+            this.board[block.targetRow][block.col] = block.color;
+        });
+    }
+    
+    // 结束动画状态
+    finishAnimation() {
+        this.fallingBlocks = [];
+        this.isAnimating = false;
+        
+        // 检查是否有可以消除的完整行
+        this.checkLines();
     }
     
     // 爆炸后让方块下落填补空隙
@@ -495,7 +678,7 @@ class TetrisGame {
             this.ctx.stroke();
         }
         
-        // 绘制已固定的方块
+        // 绘制已固定的方块（动画期间可能需要不同的处理）
         for (let row = 0; row < this.rows; row++) {
             for (let col = 0; col < this.cols; col++) {
                 if (this.board[row][col]) {
@@ -510,8 +693,42 @@ class TetrisGame {
             }
         }
         
-        // 绘制当前方块
-        if (this.currentPiece) {
+        // 绘制下落动画中的方块
+        if (this.fallingBlocks.length > 0) {
+            const timestamp = performance.now();
+            this.fallingBlocks.forEach(block => {
+                const elapsed = timestamp - block.startTime - block.delay;
+                
+                if (elapsed >= 0) {
+                    const progress = Math.min(elapsed / block.duration, 1);
+                    
+                    // 使用缓动函数让下落更自然
+                    const easeProgress = 1 - Math.pow(1 - progress, 3); // 缓出立方
+                    
+                    const currentY = block.originalRow + (block.targetRow - block.originalRow) * easeProgress;
+                    
+                    this.drawBlock(
+                        this.ctx,
+                        block.col * this.blockSize,
+                        currentY * this.blockSize,
+                        block.color,
+                        this.blockSize
+                    );
+                } else {
+                    // 延迟期间，在原始位置绘制
+                    this.drawBlock(
+                        this.ctx,
+                        block.col * this.blockSize,
+                        block.originalRow * this.blockSize,
+                        block.color,
+                        this.blockSize
+                    );
+                }
+            });
+        }
+        
+        // 绘制当前方块（动画期间不绘制）
+        if (this.currentPiece && !this.isAnimating) {
             const shape = this.currentPiece.shape;
             const bombPositions = this.currentPiece.bombPositions || [];
             
@@ -546,6 +763,57 @@ class TetrisGame {
             // 绘制幽灵方块（预览落点）
             this.drawGhostPiece();
         }
+        
+        // 绘制爆炸特效
+        this.drawExplosionEffects();
+    }
+    
+    // 绘制爆炸特效
+    drawExplosionEffects() {
+        const timestamp = performance.now();
+        
+        this.explosionEffects.forEach(effect => {
+            const progress = (timestamp - effect.startTime) / effect.duration;
+            
+            if (progress >= 0 && progress <= 1) {
+                // 计算当前半径（从0到maxRadius）
+                const radius = effect.maxRadius * progress;
+                
+                // 计算透明度（从1到0）
+                const alpha = 1 - progress;
+                
+                // 绘制扩散的圆形闪光
+                const centerX = (effect.x + 0.5) * this.blockSize;
+                const centerY = (effect.y + 0.5) * this.blockSize;
+                
+                // 保存状态
+                this.ctx.save();
+                
+                // 绘制外圈（白色高亮）
+                this.ctx.globalAlpha = alpha * 0.8;
+                this.ctx.fillStyle = '#ffffff';
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 绘制内圈（橙色火焰效果）
+                this.ctx.globalAlpha = alpha * 0.6;
+                this.ctx.fillStyle = '#ff6600';
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, radius * 0.7, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 绘制中心（黄色核心）
+                this.ctx.globalAlpha = alpha * 0.4;
+                this.ctx.fillStyle = '#ffff00';
+                this.ctx.beginPath();
+                this.ctx.arc(centerX, centerY, radius * 0.4, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 恢复状态
+                this.ctx.restore();
+            }
+        });
     }
     
     // 绘制幽灵方块（预览落点）
@@ -739,6 +1007,21 @@ class TetrisGame {
     // 游戏循环
     gameLoopFunction(timestamp) {
         if (this.isPaused || this.gameOver) {
+            this.gameLoop = requestAnimationFrame((t) => this.gameLoopFunction(t));
+            return;
+        }
+        
+        // 如果正在播放动画，只处理动画更新和绘制
+        if (this.isAnimating) {
+            // 更新爆炸特效
+            this.updateExplosionEffects(timestamp);
+            
+            // 更新下落动画
+            this.updateFallingAnimation(timestamp);
+            
+            // 绘制（包括特效）
+            this.drawBoard();
+            
             this.gameLoop = requestAnimationFrame((t) => this.gameLoopFunction(t));
             return;
         }
