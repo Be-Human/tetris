@@ -144,6 +144,11 @@ class TetrisGame {
         // 下落动画相关
         this.fallingBlocks = []; // 当前正在下落的方块动画
         
+        // 动画文字相关
+        this.animationText = null; // 当前动画文字
+        this.animationTextStartTime = 0; // 动画文字开始时间
+        this.animationTextDuration = 1500; // 动画文字持续时间（毫秒）
+        
         // 键盘控制状态
         this.keyStates = {
             ArrowLeft: false,
@@ -699,6 +704,11 @@ class TetrisGame {
         // 增加连击数
         this.combo++;
         
+        // 如果连击数>1，显示连击动画文字
+        if (this.combo > 1) {
+            this.showAnimationText(`${this.combo}连击！`);
+        }
+        
         // 计算得分：消1行100分，同时消多行给予额外加成
         // 基础分：每行100分
         let lineScore = linesCleared * 100;
@@ -889,6 +899,10 @@ class TetrisGame {
         
         // 绘制爆炸特效
         this.drawExplosionEffects();
+        
+        // 绘制动画文字
+        const timestamp = performance.now();
+        this.drawAnimationText(timestamp);
     }
     
     // 绘制爆炸特效
@@ -1134,6 +1148,74 @@ class TetrisGame {
     // 更新连击数显示
     updateCombo() {
         this.comboElement.textContent = this.combo;
+    }
+    
+    // 显示动画文字
+    showAnimationText(text) {
+        this.animationText = text;
+        this.animationTextStartTime = performance.now();
+    }
+    
+    // 绘制动画文字
+    drawAnimationText(timestamp) {
+        if (!this.animationText) return;
+        
+        const elapsed = timestamp - this.animationTextStartTime;
+        const progress = elapsed / this.animationTextDuration;
+        
+        if (progress >= 1) {
+            this.animationText = null;
+            return;
+        }
+        
+        // 计算透明度：淡入淡出效果
+        let alpha;
+        if (progress < 0.2) {
+            // 前20%时间淡入
+            alpha = progress / 0.2;
+        } else if (progress > 0.7) {
+            // 后30%时间淡出
+            alpha = (1 - progress) / 0.3;
+        } else {
+            // 中间50%时间完全显示
+            alpha = 1;
+        }
+        
+        // 计算垂直位置：从中间向上浮动
+        const centerY = this.canvas.height / 2;
+        const floatOffset = progress * 50; // 向上浮动50像素
+        const y = centerY - floatOffset;
+        
+        // 保存状态
+        this.ctx.save();
+        
+        // 设置透明度
+        this.ctx.globalAlpha = alpha;
+        
+        // 设置文字样式
+        this.ctx.font = 'bold 48px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        
+        // 绘制文字阴影
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillText(this.animationText, this.canvas.width / 2 + 3, y + 3);
+        
+        // 绘制文字（紫色渐变）
+        const gradient = this.ctx.createLinearGradient(0, y - 30, 0, y + 30);
+        gradient.addColorStop(0, '#9b59b6');
+        gradient.addColorStop(0.5, '#8e44ad');
+        gradient.addColorStop(1, '#9b59b6');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillText(this.animationText, this.canvas.width / 2, y);
+        
+        // 绘制文字描边
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeText(this.animationText, this.canvas.width / 2, y);
+        
+        // 恢复状态
+        this.ctx.restore();
     }
     
     // 更新等级显示和下落速度
