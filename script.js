@@ -83,6 +83,7 @@ class TetrisGame {
         this.currentPiece = null;
         this.nextPiece = null;
         this.score = 0;
+        this.highScore = this.loadHighScore(); // 最高分
         this.level = 1; // 当前等级
         this.totalLinesCleared = 0; // 累计消除行数
         this.gameOver = false;
@@ -91,6 +92,7 @@ class TetrisGame {
         this.baseDropSpeed = 800; // 基础下落速度（毫秒）
         this.dropSpeed = 800; // 当前下落速度（毫秒）
         this.fastDrop = false;
+        this.showGhostPiece = true; // 是否显示幽灵方块
         
         // 键盘控制状态
         this.keyStates = {
@@ -105,12 +107,15 @@ class TetrisGame {
         
         // DOM 元素
         this.scoreElement = document.getElementById('score');
+        this.highScoreElement = document.getElementById('highScore');
         this.levelElement = document.getElementById('level');
         this.startBtn = document.getElementById('startBtn');
         this.pauseBtn = document.getElementById('pauseBtn');
         this.gameOverElement = document.getElementById('gameOver');
+        this.newRecordElement = document.getElementById('newRecord');
         this.finalScoreElement = document.getElementById('finalScore');
         this.restartBtn = document.getElementById('restartBtn');
+        this.ghostPieceToggle = document.getElementById('ghostPieceToggle');
         
         // 绑定事件
         this.bindEvents();
@@ -126,6 +131,27 @@ class TetrisGame {
         this.startBtn.addEventListener('click', () => this.startGame());
         this.pauseBtn.addEventListener('click', () => this.togglePause());
         this.restartBtn.addEventListener('click', () => this.restartGame());
+        
+        // 幽灵方块开关事件
+        this.ghostPieceToggle.addEventListener('change', (e) => {
+            this.showGhostPiece = e.target.checked;
+        });
+    }
+    
+    // 从 localStorage 加载最高分
+    loadHighScore() {
+        const saved = localStorage.getItem('tetrisHighScore');
+        return saved ? parseInt(saved, 10) : 0;
+    }
+    
+    // 保存最高分到 localStorage
+    saveHighScore() {
+        localStorage.setItem('tetrisHighScore', this.highScore.toString());
+    }
+    
+    // 更新最高分显示
+    updateHighScore() {
+        this.highScoreElement.textContent = this.highScore;
     }
     
     // 初始化游戏板
@@ -332,6 +358,8 @@ class TetrisGame {
     
     // 绘制幽灵方块（预览落点）
     drawGhostPiece() {
+        if (!this.showGhostPiece) return;
+        
         let dropDistance = 0;
         
         // 计算最大下落距离
@@ -555,6 +583,7 @@ class TetrisGame {
         this.dropSpeed = this.baseDropSpeed;
         
         this.updateScore();
+        this.updateHighScore();
         this.updateLevel();
         
         this.gameOver = false;
@@ -593,6 +622,17 @@ class TetrisGame {
         this.gameOver = true;
         this.pauseBtn.style.display = 'none';
         this.finalScoreElement.textContent = this.score;
+        
+        // 检查是否是新纪录
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            this.saveHighScore();
+            this.updateHighScore();
+            this.newRecordElement.style.display = 'block';
+        } else {
+            this.newRecordElement.style.display = 'none';
+        }
+        
         this.gameOverElement.style.display = 'flex';
         
         if (this.gameLoop) {
@@ -608,6 +648,9 @@ class TetrisGame {
 
 // 初始化游戏
 const game = new TetrisGame();
+
+// 初始化最高分显示
+game.updateHighScore();
 
 // 绘制初始界面
 game.drawBoard();
