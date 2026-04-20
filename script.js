@@ -27,6 +27,8 @@ class TetrisGame {
         this.ctx = this.canvas.getContext('2d');
         this.nextCanvas = document.getElementById('nextCanvas');
         this.nextCtx = this.nextCanvas.getContext('2d');
+        this.holdCanvas = document.getElementById('holdCanvas');
+        this.holdCtx = this.holdCanvas.getContext('2d');
         
         // 游戏参数
         this.blockSize = 30;
@@ -104,6 +106,8 @@ class TetrisGame {
         this.board = [];
         this.currentPiece = null;
         this.nextPiece = null;
+        this.holdPiece = null;
+        this.canHold = true;
         this.score = 0;
         this.highScore = this.loadHighScore(); // 最高分
         this.level = 1; // 当前等级
@@ -115,6 +119,11 @@ class TetrisGame {
         this.dropSpeed = 800; // 当前下落速度（毫秒）
         this.fastDrop = false;
         this.showGhostPiece = this.loadGhostPieceSetting(); // 是否显示幽灵方块
+        
+        // 消行动画相关
+        this.linesToClear = [];
+        this.clearAnimationProgress = 0;
+        this.clearAnimationDuration = 300; // 300ms 消行动画
         
         // 难度和模式设置（从 localStorage 加载）
         this.difficulty = this.loadDifficultySetting();
@@ -594,9 +603,10 @@ class TetrisGame {
     
     // 检查并消除完整行
     checkLines() {
-        let linesCleared = 0;
+        this.linesToClear = [];
         
-        for (let row = this.rows - 1; row >= 0; row--) {
+        // 首先找出所有需要消除的行
+        for (let row = 0; row < this.rows; row++) {
             let isComplete = true;
             for (let col = 0; col < this.cols; col++) {
                 if (!this.board[row][col]) {
@@ -606,38 +616,77 @@ class TetrisGame {
             }
             
             if (isComplete) {
-                linesCleared++;
-                // 移除当前行并在顶部添加空行
-                this.board.splice(row, 1);
-                this.board.unshift(Array(this.cols).fill(null));
-                row++; // 重新检查当前行
+                this.linesToClear.push(row);
             }
         }
         
-        // 计算得分：消1行100分，同时消多行给予额外加成
-        if (linesCleared > 0) {
-            // 基础分：每行100分
-            let lineScore = linesCleared * 100;
-            
-            // 额外加成：消2行+100，消3行+300，消4行+600
-            const bonusScore = [0, 0, 100, 300, 600];
-            lineScore += bonusScore[linesCleared];
-            
-            // 应用难度得分倍率
-            lineScore = Math.floor(lineScore * this.scoreMultiplier);
-            
-            this.score += lineScore;
-            this.updateScore();
-            
-            // 更新累计消行数并检查升级
-            this.totalLinesCleared += linesCleared;
-            const newLevel = Math.floor(this.totalLinesCleared / 10) + 1;
-            
-            if (newLevel > this.level) {
-                this.level = newLevel;
-                this.updateLevel();
-            }
+        // 如果有需要消除的行，开始动画
+        if (this.linesToClear.length > 0) {
+            this.startClearAnimation();
         }
+    }
+    
+    // 开始消行动画
+    startClearAnimation() {
+        this.isAnimating = true;
+        this.clearAnimationStartTime = performance.now();
+        this.clearAnimationProgress = 0;
+    }
+    
+    // 更新消行动画
+    updateClearAnimation(timestamp) {
+        if (this.linesToClear.length === 0) return false;
+        
+        const elapsed = timestamp - this.clearAnimationStartTime;
+        this.clearAnimationProgress = Math.min(elapsed / this.clearAnimationDuration, 1);
+        
+        if (this.clearAnimationProgress >= 1) {
+            // 动画结束，执行实际的消行操作
+            this.executeClearLines();
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // 执行实际的消行操作
+    executeClearLines() {
+        const linesCleared = this.linesToClear.length;
+        
+        // 移除需要消除的行（从下往上处理，避免索引问题）
+        this.linesToClear.sort((a, b) => b - a);
+        this.linesToClear.forEach(row => {
+            this.board.splice(row, 1);
+            this.board.unshift(Array(this.cols).fill(null));
+        });
+        
+        // 计算得分：消1行100分，同时消多行给予额外加成
+        // 基础分：每行100分
+        let lineScore = linesCleared * 100;
+        
+        // 额外加成：消2行+100，消3行+300，消4行+600
+        const bonusScore = [0, 0, 100, 300, 600];
+        lineScore += bonusScore[linesCleared];
+        
+        // 应用难度得分倍率
+        lineScore = Math.floor(lineScore * this.scoreMultiplier);
+        
+        this.score += lineScore;
+        this.updateScore();
+        
+        // 更新累计消行数并检查升级
+        this.totalLinesCleared += linesCleared;
+        const newLevel = Math.floor(this.totalLinesCleared / 10) + 1;
+        
+        if (newLevel > this.level) {
+            this.level = newLevel;
+            this.updateLevel();
+        }
+        
+        // 重置消行状态
+        this.linesToClear = [];
+        this.clearAnimationProgress = 0;
+        this.isAnimating = false;
     }
     
     // 绘制单个方块
@@ -680,15 +729,44 @@ class TetrisGame {
         
         // 绘制已固定的方块（动画期间可能需要不同的处理）
         for (let row = 0; row < this.rows; row++) {
+            // 检查当前行是否在需要消除的行中
+            const isLineToClear = this.linesToClear.includes(row);
+            
             for (let col = 0; col < this.cols; col++) {
                 if (this.board[row][col]) {
-                    this.drawBlock(
-                        this.ctx,
-                        col * this.blockSize,
-                        row * this.blockSize,
-                        this.board[row][col],
-                        this.blockSize
-                    );
+                    if (isLineToClear && this.clearAnimationProgress > 0) {
+                        // 消行动画：显示闪光效果
+                        const x = col * this.blockSize;
+                        const y = row * this.blockSize;
+                        
+                        // 先绘制原始方块
+                        this.drawBlock(
+                            this.ctx,
+                            x,
+                            y,
+                            this.board[row][col],
+                            this.blockSize
+                        );
+                        
+                        // 计算闪光强度：使用正弦函数实现闪烁效果
+                        const flashIntensity = Math.sin(this.clearAnimationProgress * Math.PI);
+                        
+                        // 添加白色闪光覆盖层
+                        this.ctx.save();
+                        this.ctx.globalAlpha = flashIntensity * 0.8;
+                        this.ctx.fillStyle = '#ffffff';
+                        this.ctx.fillRect(x + 1, y + 1, this.blockSize - 2, this.blockSize - 2);
+                        this.ctx.restore();
+                    } else {
+                        // 普通绘制
+                        this.drawBlock(
+                            this.ctx,
+                            col * this.blockSize,
+                            row * this.blockSize,
+                            this.board[row][col],
+                            this.blockSize
+                        );
+                    }
                 }
             }
         }
@@ -876,6 +954,38 @@ class TetrisGame {
         }
     }
     
+    // 绘制 Hold 区域方块
+    drawHoldPiece() {
+        this.holdCtx.fillStyle = '#2c3e50';
+        this.holdCtx.fillRect(0, 0, this.holdCanvas.width, this.holdCanvas.height);
+        
+        if (!this.holdPiece) return;
+        
+        const shape = this.holdPiece.shape;
+        const blockSize = 20;
+        const offsetX = (this.holdCanvas.width - shape[0].length * blockSize) / 2;
+        const offsetY = (this.holdCanvas.height - shape.length * blockSize) / 2;
+        
+        // 如果 Hold 功能不可用，添加半透明效果
+        this.holdCtx.globalAlpha = this.canHold ? 1 : 0.5;
+        
+        for (let row = 0; row < shape.length; row++) {
+            for (let col = 0; col < shape[row].length; col++) {
+                if (shape[row][col]) {
+                    this.drawBlock(
+                        this.holdCtx,
+                        offsetX + col * blockSize,
+                        offsetY + row * blockSize,
+                        this.holdPiece.color,
+                        blockSize
+                    );
+                }
+            }
+        }
+        
+        this.holdCtx.globalAlpha = 1;
+    }
+    
     // 移动方块
     movePiece(dx, dy) {
         if (!this.checkCollision(this.currentPiece, dx, dy)) {
@@ -915,6 +1025,43 @@ class TetrisGame {
         this.lockPiece();
     }
     
+    // 暂存当前方块
+    holdCurrentPiece() {
+        if (!this.canHold || !this.currentPiece) return;
+        
+        // 保存当前方块的形状和颜色（重置位置）
+        const pieceToHold = {
+            shape: JSON.parse(JSON.stringify(this.currentPiece.shape)),
+            color: this.currentPiece.color,
+            x: Math.floor((this.cols - this.currentPiece.shape[0].length) / 2),
+            y: 0,
+            bombPositions: this.currentPiece.bombPositions ? [...this.currentPiece.bombPositions] : []
+        };
+        
+        if (this.holdPiece === null) {
+            // 如果 Hold 区域为空，将当前方块放入 Hold，然后取出下一个方块
+            this.holdPiece = pieceToHold;
+            this.currentPiece = this.nextPiece;
+            this.nextPiece = this.generatePiece();
+            this.drawNextPiece();
+        } else {
+            // 如果 Hold 区域已有方块，交换当前方块和 Hold 方块
+            const temp = pieceToHold;
+            this.currentPiece = {
+                shape: JSON.parse(JSON.stringify(this.holdPiece.shape)),
+                color: this.holdPiece.color,
+                x: Math.floor((this.cols - this.holdPiece.shape[0].length) / 2),
+                y: 0,
+                bombPositions: this.holdPiece.bombPositions ? [...this.holdPiece.bombPositions] : []
+            };
+            this.holdPiece = temp;
+        }
+        
+        // 标记不能再使用 Hold，直到下一个方块落下
+        this.canHold = false;
+        this.drawHoldPiece();
+    }
+    
     // 锁定方块
     lockPiece() {
         this.fixPiece();
@@ -924,6 +1071,9 @@ class TetrisGame {
         this.currentPiece = this.nextPiece;
         this.nextPiece = this.generatePiece();
         this.drawNextPiece();
+        
+        // 重置 Hold 功能可用性
+        this.canHold = true;
         
         // 检查游戏是否结束
         if (this.checkCollision(this.currentPiece)) {
@@ -967,6 +1117,11 @@ class TetrisGame {
         
         if (e.code === 'ArrowDown') {
             this.fastDrop = true;
+        }
+        
+        if (e.code === 'KeyC') {
+            e.preventDefault();
+            this.holdCurrentPiece();
         }
     }
     
@@ -1019,6 +1174,9 @@ class TetrisGame {
             // 更新下落动画
             this.updateFallingAnimation(timestamp);
             
+            // 更新消行动画
+            this.updateClearAnimation(timestamp);
+            
             // 绘制（包括特效）
             this.drawBoard();
             
@@ -1058,6 +1216,8 @@ class TetrisGame {
         this.score = 0;
         this.level = 1;
         this.totalLinesCleared = 0;
+        this.holdPiece = null;
+        this.canHold = true;
         
         // 应用难度设置
         const diffConfig = this.difficulties[this.difficulty];
@@ -1088,6 +1248,7 @@ class TetrisGame {
         // 绘制
         this.drawBoard();
         this.drawNextPiece();
+        this.drawHoldPiece();
         
         // 开始游戏循环
         this.lastDropTime = 0;
