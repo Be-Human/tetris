@@ -112,6 +112,7 @@ class TetrisGame {
         this.highScore = this.loadHighScore(); // 最高分
         this.level = 1; // 当前等级
         this.totalLinesCleared = 0; // 累计消除行数
+        this.combo = 0; // 连击数
         this.gameOver = false;
         this.isPaused = false;
         this.gameLoop = null;
@@ -158,6 +159,7 @@ class TetrisGame {
         this.scoreElement = document.getElementById('score');
         this.highScoreElement = document.getElementById('highScore');
         this.levelElement = document.getElementById('level');
+        this.comboElement = document.getElementById('combo');
         this.startBtn = document.getElementById('startBtn');
         this.pauseBtn = document.getElementById('pauseBtn');
         this.gameOverElement = document.getElementById('gameOver');
@@ -651,6 +653,12 @@ class TetrisGame {
         // 如果有需要消除的行，开始动画
         if (this.linesToClear.length > 0) {
             this.startClearAnimation();
+        } else {
+            // 没有消行时重置连击数
+            if (this.combo > 0) {
+                this.combo = 0;
+                this.updateCombo();
+            }
         }
     }
     
@@ -688,6 +696,9 @@ class TetrisGame {
             this.board.unshift(Array(this.cols).fill(null));
         });
         
+        // 增加连击数
+        this.combo++;
+        
         // 计算得分：消1行100分，同时消多行给予额外加成
         // 基础分：每行100分
         let lineScore = linesCleared * 100;
@@ -696,11 +707,17 @@ class TetrisGame {
         const bonusScore = [0, 0, 100, 300, 600];
         lineScore += bonusScore[linesCleared];
         
+        // 连击奖励：每多一连击额外加分
+        // 连击1：0分（第一次消行），连击2：+50分，连击3：+100分，以此类推
+        const comboBonus = (this.combo - 1) * 50;
+        lineScore += comboBonus;
+        
         // 应用难度得分倍率
         lineScore = Math.floor(lineScore * this.scoreMultiplier);
         
         this.score += lineScore;
         this.updateScore();
+        this.updateCombo();
         
         // 更新累计消行数并检查升级
         this.totalLinesCleared += linesCleared;
@@ -1114,6 +1131,11 @@ class TetrisGame {
         this.scoreElement.textContent = this.score;
     }
     
+    // 更新连击数显示
+    updateCombo() {
+        this.comboElement.textContent = this.combo;
+    }
+    
     // 更新等级显示和下落速度
     updateLevel() {
         this.levelElement.textContent = this.level;
@@ -1254,6 +1276,7 @@ class TetrisGame {
         this.score = 0;
         this.level = 1;
         this.totalLinesCleared = 0;
+        this.combo = 0;
         this.holdPiece = null;
         this.canHold = true;
         
@@ -1269,6 +1292,7 @@ class TetrisGame {
         this.updateScore();
         this.updateHighScore();
         this.updateLevel();
+        this.updateCombo();
         
         this.gameOver = false;
         this.isPaused = false;
