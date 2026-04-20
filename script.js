@@ -168,6 +168,12 @@ class TetrisGame {
         this.difficultySelect = document.getElementById('difficultySelect');
         this.bombModeToggle = document.getElementById('bombModeToggle');
         
+        // 帮助弹窗相关
+        this.helpBtn = document.getElementById('helpBtn');
+        this.helpModal = document.getElementById('helpModal');
+        this.closeHelp = document.getElementById('closeHelp');
+        this.closeHelpBtn = document.getElementById('closeHelpBtn');
+        
         // 同步开关按钮状态
         this.syncGhostPieceToggle();
         this.syncDifficultySelect();
@@ -208,6 +214,28 @@ class TetrisGame {
             this.bombMode = e.target.checked;
             this.saveBombModeSetting();
         });
+        
+        // 帮助弹窗事件
+        this.helpBtn.addEventListener('click', () => this.showHelpModal());
+        this.closeHelp.addEventListener('click', () => this.hideHelpModal());
+        this.closeHelpBtn.addEventListener('click', () => this.hideHelpModal());
+        
+        // 点击弹窗外部关闭
+        this.helpModal.addEventListener('click', (e) => {
+            if (e.target === this.helpModal) {
+                this.hideHelpModal();
+            }
+        });
+    }
+    
+    // 显示帮助弹窗
+    showHelpModal() {
+        this.helpModal.style.display = 'flex';
+    }
+    
+    // 隐藏帮助弹窗
+    hideHelpModal() {
+        this.helpModal.style.display = 'none';
     }
     
     // 同步难度选择器状态

@@ -331,3 +331,168 @@ h1 {
     padding-bottom: 10px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
+
+.help-btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: 1.5em;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    animation: popIn 0.5s ease-out;
+    min-width: 300px;
+    position: relative;
+}
+
+.modal-content h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 1.5em;
+}
+
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1.5em;
+    color: #999;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.close-btn:hover {
+    color: #333;
+}
+
+.help-content {
+    margin-bottom: 25px;
+}
+
+.help-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    background: #ecf0f1;
+    border-radius: 8px;
+}
+
+.help-item .key {
+    background: #3498db;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-weight: bold;
+    min-width: 60px;
+    text-align: center;
+}
+
+.help-item .desc {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+/* 调整整体布局，确保在一屏内显示 */
+body {
+    min-height: 100vh;
+    padding: 10px;
+}
+
+.game-container {
+    padding: 15px;
+    max-height: 95vh;
+    overflow: hidden;
+}
+
+h1 {
+    margin-bottom: 10px;
+    font-size: 1.8em;
+}
+
+.game-wrapper {
+    gap: 15px;
+}
+
+.game-info {
+    gap: 8px;
+    min-width: 160px;
+}
+
+.info-panel {
+    padding: 8px 10px;
+}
+
+.info-panel h2 {
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    padding-bottom: 3px;
+}
+
+.stats-panel {
+    padding: 8px 5px;
+}
+
+.stat-item h3 {
+    font-size: 0.8em;
+    margin-bottom: 3px;
+}
+
+.score, .level {
+    font-size: 1.5em;
+}
+
+.high-score {
+    font-size: 1.2em;
+}
+
+#nextCanvas, #holdCanvas {
+    padding: 3px;
+}
+
+.settings-panel {
+    padding: 8px 10px;
+}
+
+.setting-item:not(:last-child) {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+}
+
+.setting-label {
+    font-size: 0.85em;
+}
+
+.btn {
+    padding: 8px 16px;
+    font-size: 0.9em;
+}
+
+.difficulty-select {
+    padding: 4px 8px;
+    font-size: 0.85em;
+}
