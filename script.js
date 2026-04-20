@@ -1125,7 +1125,17 @@ class TetrisGame {
     
     // 处理键盘按下
     handleKeyDown(e) {
-        // 暂停期间屏蔽所有键盘输入
+        // P 键用于暂停/继续，游戏结束时也可以处理（如果需要重新开始）
+        if (e.code === 'KeyP' || e.key === 'p' || e.key === 'P') {
+            e.preventDefault();
+            // 只有在游戏进行中（不是游戏结束）才能暂停/继续
+            if (!this.gameOver) {
+                this.togglePause();
+            }
+            return;
+        }
+        
+        // 暂停期间屏蔽其他键盘输入，游戏结束或没有当前方块时也屏蔽
         if (this.isPaused || this.gameOver || !this.currentPiece) return;
         
         if (e.code in this.keyStates) {
